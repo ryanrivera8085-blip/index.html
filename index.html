@@ -37,12 +37,16 @@ const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
+// 🔹 BOTONES (ESTO FALTABA)
+const destelloBtn = document.getElementById("destello");
+const escudoBtn = document.getElementById("escudo");
+const pulsoBtn = document.getElementById("pulso");
+
 // 🔹 LUMINU 🔹
 let luminu = {
-  x: canvas.width/2,
-  y: canvas.height/2,
+  x: canvas.width / 2,
+  y: canvas.height / 2,
   r: 20,
-  speed: 3,
   shield: false
 };
 
@@ -59,7 +63,7 @@ let joystick = {
 
 canvas.addEventListener("touchstart", e=>{
   let t = e.touches[0];
-  if (t.clientX < canvas.width/2) {
+  if (t.clientX < canvas.width / 2) {
     joystick.active = true;
     joystick.startX = t.clientX;
     joystick.startY = t.clientY;
@@ -105,14 +109,14 @@ function draw(){
 
   // Luminu
   ctx.beginPath();
-  ctx.arc(luminu.x, luminu.y, luminu.r, 0, Math.PI*2);
+  ctx.arc(luminu.x, luminu.y, luminu.r, 0, Math.PI * 2);
   ctx.fillStyle = "white";
   ctx.fill();
 
   // Escudo
   if (luminu.shield){
     ctx.beginPath();
-    ctx.arc(luminu.x, luminu.y, luminu.r+10, 0, Math.PI*2);
+    ctx.arc(luminu.x, luminu.y, luminu.r + 10, 0, Math.PI * 2);
     ctx.strokeStyle = "cyan";
     ctx.lineWidth = 4;
     ctx.stroke();
@@ -120,20 +124,20 @@ function draw(){
 
   // Efectos
   effects.forEach((e,i)=>{
-    if (e.type==="flash"){
-      ctx.fillStyle="rgba(255,255,255,0.3)";
+    if (e.type === "flash"){
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
       ctx.fillRect(0,0,canvas.width,canvas.height);
       e.time--;
-      if (e.time<=0) effects.splice(i,1);
+      if (e.time <= 0) effects.splice(i,1);
     }
-    if (e.type==="pulse"){
+    if (e.type === "pulse"){
       ctx.beginPath();
-      ctx.arc(luminu.x, luminu.y, e.r, 0, Math.PI*2);
-      ctx.strokeStyle="blue";
-      ctx.lineWidth=3;
+      ctx.arc(luminu.x, luminu.y, e.r, 0, Math.PI * 2);
+      ctx.strokeStyle = "blue";
+      ctx.lineWidth = 3;
       ctx.stroke();
-      e.r+=8;
-      if (e.r>300) effects.splice(i,1);
+      e.r += 8;
+      if (e.r > 300) effects.splice(i,1);
     }
   });
 }
