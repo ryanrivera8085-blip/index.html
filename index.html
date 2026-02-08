@@ -3,33 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <title>Luminu Mobile</title>
+
 <style>
-  body { margin:0; background:black; overflow:hidden; touch-action:none; }
-  canvas { display:block; }
+body {
+  margin:0;
+  background:black;
+  overflow:hidden;
+  touch-action:none;
+}
+canvas { display:block; }
 
-  .btn {
-    position: absolute;
-    width: 70px;
-    height: 70px;
-    border-radius: 50%;
-    background: rgba(0,200,255,0.3);
-    border: 2px solid cyan;
-    color: white;
-    font-size: 12px;
-  }
+.btn{
+  position:absolute;
+  width:70px;
+  height:70px;
+  border-radius:50%;
+  background:rgba(0,200,255,0.3);
+  border:2px solid cyan;
+  color:white;
+  font-size:14px;
+}
 
-  #destello { right: 20px; bottom: 180px; }
-  #escudo   { right: 100px; bottom: 100px; }
-  #pulso    { right: 20px; bottom: 100px; }
+#pulso{ right:20px; bottom:100px; }
+#escudo{ right:100px; bottom:100px; }
 </style>
 </head>
-<body>
 
+<body>
 <canvas id="game"></canvas>
 
-<button class="btn" id="destello">Destello</button>
-<button class="btn" id="escudo">Escudo</button>
 <button class="btn" id="pulso">Pulso</button>
+<button class="btn" id="escudo">Escudo</button>
 
 <script>
 const canvas = document.getElementById("game");
@@ -37,161 +41,153 @@ const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-const destelloBtn = document.getElementById("destello");
-const escudoBtn = document.getElementById("escudo");
 const pulsoBtn = document.getElementById("pulso");
+const escudoBtn = document.getElementById("escudo");
 
-// 🔹 LUMINU 🔹
+// 🔹 LUMINU (PERSONA)
 let luminu = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  r: 20,
-  life: 100,
-  shield: false
+  x: canvas.width/2,
+  y: canvas.height/2,
+  life:100,
+  shield:false
 };
 
-let enemies = [];
-let pulses = [];
-let pulsoReady = true;
-
-// 👾 CREAR ENEMIGOS
-function spawnEnemy() {
+// 👾 ZOMBIES
+let enemies=[];
+function spawnEnemy(){
   enemies.push({
-    x: Math.random() * canvas.width,
-    y: Math.random() * canvas.height,
-    r: 15,
-    speed: 0.6
+    x:Math.random()*canvas.width,
+    y:Math.random()*canvas.height,
+    speed:0.4
   });
 }
-setInterval(spawnEnemy, 2000);
+setInterval(spawnEnemy,2000);
 
 // 🕹️ JOYSTICK
-let joystick = { active:false, startX:0, startY:0, dx:0, dy:0 };
+let joy={active:false,sx:0,sy:0,dx:0,dy:0};
 
-canvas.addEventListener("touchstart", e => {
-  let t = e.touches[0];
-  if (t.clientX < canvas.width / 2) {
-    joystick.active = true;
-    joystick.startX = t.clientX;
-    joystick.startY = t.clientY;
+canvas.addEventListener("touchstart",e=>{
+  let t=e.touches[0];
+  if(t.clientX<canvas.width/2){
+    joy.active=true;
+    joy.sx=t.clientX;
+    joy.sy=t.clientY;
   }
 });
-canvas.addEventListener("touchmove", e => {
-  if (!joystick.active) return;
-  let t = e.touches[0];
-  joystick.dx = t.clientX - joystick.startX;
-  joystick.dy = t.clientY - joystick.startY;
+canvas.addEventListener("touchmove",e=>{
+  if(!joy.active)return;
+  let t=e.touches[0];
+  joy.dx=t.clientX-joy.sx;
+  joy.dy=t.clientY-joy.sy;
 });
-canvas.addEventListener("touchend", () => {
-  joystick.active = false;
-  joystick.dx = joystick.dy = 0;
+canvas.addEventListener("touchend",()=>{
+  joy.active=false;
+  joy.dx=joy.dy=0;
 });
 
-// ✨ HABILIDADES
-function escudo() {
-  luminu.shield = true;
-  setTimeout(() => luminu.shield = false, 3000);
-}
+// 💥 PULSO
+let pulses=[];
+let pulsoReady=true;
+let cooldown=5;
 
-function pulso() {
-  if (!pulsoReady) return;
+function pulso(){
+  if(!pulsoReady)return;
+  pulsoReady=false;
+  cooldown=5;
+  pulses.push({r:0,max:200});
 
-  pulsoReady = false;
-  pulses.push({ r: 0, max: 220 });
-
-  // ⏱️ COOLDOWN 5s
-  setTimeout(() => pulsoReady = true, 5000);
-}
-
-escudoBtn.onclick = escudo;
-pulsoBtn.onclick = pulso;
-
-// 🔁 LOOP
-function update() {
-  // Movimiento Luminu
-  luminu.x += joystick.dx * 0.03;
-  luminu.y += joystick.dy * 0.03;
-
-  // 👾 Enemigos persiguen
-  enemies.forEach(e => {
-    let dx = luminu.x - e.x;
-    let dy = luminu.y - e.y;
-    let dist = Math.hypot(dx, dy);
-    e.x += (dx / dist) * e.speed;
-    e.y += (dy / dist) * e.speed;
-
-    // Daño
-    if (dist < luminu.r + e.r && !luminu.shield) {
-      luminu.life -= 0.3;
+  let timer=setInterval(()=>{
+    cooldown--;
+    pulsoBtn.textContent=cooldown>0?cooldown:"Pulso";
+    if(cooldown<=0){
+      pulsoReady=true;
+      clearInterval(timer);
     }
+  },1000);
+}
+pulsoBtn.onclick=pulso;
+
+// 🛡️ ESCUDO
+escudoBtn.onclick=()=>{
+  luminu.shield=true;
+  setTimeout(()=>luminu.shield=false,3000);
+};
+
+// 🔁 UPDATE
+function update(){
+  luminu.x+=joy.dx*0.03;
+  luminu.y+=joy.dy*0.03;
+
+  enemies.forEach(e=>{
+    let dx=luminu.x-e.x;
+    let dy=luminu.y-e.y;
+    let d=Math.hypot(dx,dy);
+    e.x+=(dx/d)*e.speed;
+    e.y+=(dy/d)*e.speed;
+    if(d<25 && !luminu.shield) luminu.life-=0.2;
   });
 
-  // 💥 Pulso elimina SOLO en rango
-  pulses.forEach((p, pi) => {
-    p.r += 6;
-    enemies = enemies.filter(e =>
-      Math.hypot(luminu.x - e.x, luminu.y - e.y) > p.r
+  pulses.forEach((p,i)=>{
+    p.r+=6;
+    enemies=enemies.filter(e=>
+      Math.hypot(luminu.x-e.x,luminu.y-e.y)>p.r
     );
-    if (p.r > p.max) pulses.splice(pi, 1);
+    if(p.r>p.max)pulses.splice(i,1);
   });
 
-  if (luminu.life <= 0) {
+  if(luminu.life<=0){
     alert("GAME OVER");
     location.reload();
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// 🎨 DRAW
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Luminu
-  ctx.beginPath();
-  ctx.arc(luminu.x, luminu.y, luminu.r, 0, Math.PI * 2);
-  ctx.fillStyle = "white";
-  ctx.fill();
+  // Luminu persona
+  ctx.fillStyle="white";
+  ctx.beginPath(); ctx.arc(luminu.x,luminu.y-12,6,0,Math.PI*2); ctx.fill();
+  ctx.fillRect(luminu.x-4,luminu.y-6,8,14);
+  ctx.fillRect(luminu.x-8,luminu.y,16,4);
 
   // Escudo
-  if (luminu.shield) {
+  if(luminu.shield){
+    ctx.strokeStyle="cyan";
+    ctx.lineWidth=3;
     ctx.beginPath();
-    ctx.arc(luminu.x, luminu.y, luminu.r + 10, 0, Math.PI * 2);
-    ctx.strokeStyle = "cyan";
-    ctx.lineWidth = 4;
+    ctx.arc(luminu.x,luminu.y,22,0,Math.PI*2);
     ctx.stroke();
   }
 
-  // Enemigos
-  enemies.forEach(e => {
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
-    ctx.fillStyle = "red";
-    ctx.fill();
+  // Zombies
+  enemies.forEach(e=>{
+    ctx.fillStyle="green";
+    ctx.fillRect(e.x-6,e.y-6,12,12);
+    ctx.fillStyle="darkgreen";
+    ctx.fillRect(e.x-4,e.y-14,8,8);
   });
 
-  // Pulso visual
-  pulses.forEach(p => {
+  // Pulso
+  pulses.forEach(p=>{
+    ctx.strokeStyle="blue";
+    ctx.lineWidth=3;
     ctx.beginPath();
-    ctx.arc(luminu.x, luminu.y, p.r, 0, Math.PI * 2);
-    ctx.strokeStyle = "blue";
-    ctx.lineWidth = 3;
+    ctx.arc(luminu.x,luminu.y,p.r,0,Math.PI*2);
     ctx.stroke();
   });
 
   // Vida
-  ctx.fillStyle = "red";
-  ctx.fillRect(20, 20, luminu.life * 2, 10);
-
-  // Cooldown pulso
-  ctx.fillStyle = pulsoReady ? "white" : "gray";
-  ctx.fillText("Pulso", canvas.width - 70, canvas.height - 30);
+  ctx.fillStyle="red";
+  ctx.fillRect(20,20,luminu.life*2,10);
 }
 
-function loop() {
+function loop(){
   update();
   draw();
   requestAnimationFrame(loop);
 }
 loop();
 </script>
-
 </body>
 </html>
