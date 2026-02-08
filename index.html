@@ -37,71 +37,82 @@ const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-// 🔹 BOTONES (ESTO FALTABA)
 const destelloBtn = document.getElementById("destello");
 const escudoBtn = document.getElementById("escudo");
 const pulsoBtn = document.getElementById("pulso");
 
 // 🔹 LUMINU 🔹
 let luminu = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
+  x: canvas.width/2,
+  y: canvas.height/2,
   r: 20,
+  life: 100,
   shield: false
 };
 
 let effects = [];
+let enemies = [];
+
+// 👾 CREAR ENEMIGO
+function spawnEnemy(){
+  enemies.push({
+    x: Math.random()*canvas.width,
+    y: Math.random()*canvas.height,
+    r: 15
+  });
+}
+setInterval(spawnEnemy, 2000);
 
 // 🕹️ JOYSTICK
-let joystick = {
-  active:false,
-  startX:0,
-  startY:0,
-  dx:0,
-  dy:0
-};
+let joystick={active:false,startX:0,startY:0,dx:0,dy:0};
 
-canvas.addEventListener("touchstart", e=>{
-  let t = e.touches[0];
-  if (t.clientX < canvas.width / 2) {
-    joystick.active = true;
-    joystick.startX = t.clientX;
-    joystick.startY = t.clientY;
+canvas.addEventListener("touchstart",e=>{
+  let t=e.touches[0];
+  if(t.clientX<canvas.width/2){
+    joystick.active=true;
+    joystick.startX=t.clientX;
+    joystick.startY=t.clientY;
   }
 });
-
-canvas.addEventListener("touchmove", e=>{
-  if (!joystick.active) return;
-  let t = e.touches[0];
-  joystick.dx = t.clientX - joystick.startX;
-  joystick.dy = t.clientY - joystick.startY;
+canvas.addEventListener("touchmove",e=>{
+  if(!joystick.active)return;
+  let t=e.touches[0];
+  joystick.dx=t.clientX-joystick.startX;
+  joystick.dy=t.clientY-joystick.startY;
+});
+canvas.addEventListener("touchend",()=>{
+  joystick.active=false;
+  joystick.dx=joystick.dy=0;
 });
 
-canvas.addEventListener("touchend", ()=>{
-  joystick.active = false;
-  joystick.dx = joystick.dy = 0;
-});
-
-// ✨ HABILIDADES ✨
-function destello(){
-  effects.push({type:"flash", time:15});
-}
+// ✨ HABILIDADES
+function destello(){effects.push({type:"flash",time:10});}
 function escudo(){
-  luminu.shield = true;
-  setTimeout(()=>luminu.shield=false, 3000);
+  luminu.shield=true;
+  setTimeout(()=>luminu.shield=false,3000);
 }
-function pulso(){
-  effects.push({type:"pulse", r:0});
-}
+function pulso(){effects.push({type:"pulse",r:0});}
 
-destelloBtn.onclick = destello;
-escudoBtn.onclick = escudo;
-pulsoBtn.onclick = pulso;
+destelloBtn.onclick=destello;
+escudoBtn.onclick=escudo;
+pulsoBtn.onclick=pulso;
 
-// 🔁 LOOP 🔁
+// 🔁 LOOP
 function update(){
-  luminu.x += joystick.dx * 0.03;
-  luminu.y += joystick.dy * 0.03;
+  luminu.x+=joystick.dx*0.03;
+  luminu.y+=joystick.dy*0.03;
+
+  enemies.forEach((e,i)=>{
+    let dx=luminu.x-e.x, dy=luminu.y-e.y;
+    if(Math.hypot(dx,dy)<luminu.r+e.r){
+      if(!luminu.shield) luminu.life-=1;
+    }
+  });
+
+  if(luminu.life<=0){
+    alert("GAME OVER");
+    location.reload();
+  }
 }
 
 function draw(){
@@ -109,35 +120,43 @@ function draw(){
 
   // Luminu
   ctx.beginPath();
-  ctx.arc(luminu.x, luminu.y, luminu.r, 0, Math.PI * 2);
-  ctx.fillStyle = "white";
+  ctx.arc(luminu.x,luminu.y,luminu.r,0,Math.PI*2);
+  ctx.fillStyle="white";
   ctx.fill();
 
   // Escudo
-  if (luminu.shield){
+  if(luminu.shield){
     ctx.beginPath();
-    ctx.arc(luminu.x, luminu.y, luminu.r + 10, 0, Math.PI * 2);
-    ctx.strokeStyle = "cyan";
-    ctx.lineWidth = 4;
+    ctx.arc(luminu.x,luminu.y,luminu.r+10,0,Math.PI*2);
+    ctx.strokeStyle="cyan";
+    ctx.lineWidth=4;
     ctx.stroke();
   }
 
+  // Enemigos
+  enemies.forEach(e=>{
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
+    ctx.fillStyle="red";
+    ctx.fill();
+  });
+
+  // Vida
+  ctx.fillStyle="red";
+  ctx.fillRect(20,20,luminu.life*2,10);
+
   // Efectos
   effects.forEach((e,i)=>{
-    if (e.type === "flash"){
-      ctx.fillStyle = "rgba(255,255,255,0.3)";
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      e.time--;
-      if (e.time <= 0) effects.splice(i,1);
-    }
-    if (e.type === "pulse"){
+    if(e.type==="pulse"){
       ctx.beginPath();
-      ctx.arc(luminu.x, luminu.y, e.r, 0, Math.PI * 2);
-      ctx.strokeStyle = "blue";
-      ctx.lineWidth = 3;
+      ctx.arc(luminu.x,luminu.y,e.r,0,Math.PI*2);
+      ctx.strokeStyle="blue";
       ctx.stroke();
-      e.r += 8;
-      if (e.r > 300) effects.splice(i,1);
+      enemies=enemies.filter(en=>{
+        Math.hypot(luminu.x-en.x,luminu.y-en.y)>e.r
+      });
+      e.r+=10;
+      if(e.r>300)effects.splice(i,1);
     }
   });
 }
