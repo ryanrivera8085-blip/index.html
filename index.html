@@ -6,47 +6,47 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-body { margin:0; overflow:hidden; background:black; font-family:Arial; }
+body {
+  margin:0;
+  overflow:hidden;
+  background:black;
+  font-family:Arial;
+}
 
 /* UI */
-#ui-left {
+#ui {
   position:absolute;
-  left:20px;
-  bottom:20px;
+  left:10px;
+  bottom:10px;
   z-index:10;
 }
-#ui-right {
-  position:absolute;
-  right:20px;
-  top:40%;
-  font-size:100px;
-  color:white;
-  z-index:10;
-}
+
 #joystick {
-  width:120px;
-  height:120px;
+  width:90px;
+  height:90px;
   border-radius:50%;
   background:rgba(255,255,255,0.15);
-  margin-bottom:10px;
+  margin-bottom:6px;
 }
+
 .btn {
-  width:120px;
-  padding:10px;
-  margin-top:8px;
-  border-radius:12px;
+  width:90px;
+  padding:6px;
+  margin-top:4px;
+  font-size:12px;
+  border-radius:8px;
   border:none;
   background:#00cfd1;
-  font-size:16px;
+  color:black;
 }
 
 #bossBar {
   position:absolute;
-  top:20px;
+  top:15px;
   left:50%;
   transform:translateX(-50%);
-  width:220px;
-  height:14px;
+  width:200px;
+  height:10px;
   background:#400;
   display:none;
 }
@@ -61,13 +61,12 @@ body { margin:0; overflow:hidden; background:black; font-family:Arial; }
 <body>
 
 <!-- UI -->
-<div id="ui-left">
+<div id="ui">
   <div id="joystick"></div>
   <button class="btn" id="pulseBtn">PULSO</button>
   <button class="btn" id="shieldBtn">ESCUDO</button>
+  <button class="btn" id="shopBtn">TIENDA</button>
 </div>
-
-<div id="ui-right">🧍</div>
 
 <div id="bossBar"><div id="bossLife"></div></div>
 
@@ -78,7 +77,7 @@ body { margin:0; overflow:hidden; background:black; font-family:Arial; }
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 200);
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -87,20 +86,43 @@ scene.add(new THREE.AmbientLight(0xffffff, 1));
 
 /* ===== SUELO ===== */
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(100,100),
+  new THREE.PlaneGeometry(300,300),
   new THREE.MeshBasicMaterial({color:0x111111})
 );
 floor.rotation.x = -Math.PI/2;
 scene.add(floor);
 
-/* ===== JUGADOR ===== */
+/* ===== STICKMAN (ANIMADO) ===== */
 const player = new THREE.Group();
+
+// cuerpo
 const body = new THREE.Mesh(
-  new THREE.BoxGeometry(1,1.6,0.6),
+  new THREE.BoxGeometry(0.6,1.4,0.4),
   new THREE.MeshBasicMaterial({color:0xffffff})
 );
-body.position.y = 0.8;
+body.position.y = 0.7;
 player.add(body);
+
+// cabeza
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.35,16,16),
+  new THREE.MeshBasicMaterial({color:0xffffff})
+);
+head.position.y = 1.6;
+player.add(head);
+
+// piernas
+const legL = new THREE.Mesh(
+  new THREE.BoxGeometry(0.2,0.7,0.2),
+  new THREE.MeshBasicMaterial({color:0xffffff})
+);
+legL.position.set(-0.15,0.35,0);
+player.add(legL);
+
+const legR = legL.clone();
+legR.position.x = 0.15;
+player.add(legR);
+
 scene.add(player);
 
 /* ===== VARIABLES ===== */
@@ -111,24 +133,42 @@ let boss=null;
 let pulseReady=true;
 let shieldLife=0;
 
-/* ===== CÁMARA 3RA PERSONA ===== */
-function updateCamera(){
-  const offset = new THREE.Vector3(0,4,7);
-  camera.position.copy(player.position).add(offset);
-  camera.lookAt(player.position);
-}
+// cámara
+let camAngle = 0;
+let camDistance = 7;
+let camHeight = 4;
 
 /* ===== JOYSTICK ===== */
 const joystick = document.getElementById("joystick");
 joystick.addEventListener("touchmove", e=>{
   const t=e.touches[0];
   const r=joystick.getBoundingClientRect();
-  moveX=(t.clientX-(r.left+r.width/2))/50;
-  moveY=(t.clientY-(r.top+r.height/2))/50;
+  moveX=(t.clientX-(r.left+r.width/2))/40;
+  moveY=(t.clientY-(r.top+r.height/2))/40;
   moveX=Math.max(-1,Math.min(1,moveX));
   moveY=Math.max(-1,Math.min(1,moveY));
 });
 joystick.addEventListener("touchend",()=>{moveX=moveY=0;});
+
+/* ===== CÁMARA CON DEDO ===== */
+let touchingCamera = false;
+let lastX = 0;
+
+addEventListener("touchstart", e=>{
+  if(e.touches[0].clientX > innerWidth/2){
+    touchingCamera = true;
+    lastX = e.touches[0].clientX;
+  }
+});
+
+addEventListener("touchmove", e=>{
+  if(!touchingCamera) return;
+  const x = e.touches[0].clientX;
+  camAngle += (x - lastX) * 0.005;
+  lastX = x;
+});
+
+addEventListener("touchend", ()=> touchingCamera=false);
 
 /* ===== ZOMBIES ===== */
 function spawnZombie(){
@@ -140,9 +180,9 @@ function spawnZombie(){
   if(type==="boss"){
     boss=new THREE.Mesh(
       new THREE.BoxGeometry(3,4,3),
-      new THREE.MeshBasicMaterial({color:0x800080})
+      new THREE.MeshBasicMaterial({color:0x880088})
     );
-    boss.position.set(Math.random()*10-5,2,-15);
+    boss.position.set(Math.random()*10-5,2,-20);
     boss.hp=10;
     scene.add(boss);
     bossBar.style.display="block";
@@ -151,10 +191,10 @@ function spawnZombie(){
   }
 
   const z=new THREE.Mesh(
-    new THREE.BoxGeometry(1,1.6,0.6),
+    new THREE.BoxGeometry(0.8,1.6,0.6),
     new THREE.MeshBasicMaterial({color:type==="red"?0xff0000:0x00ff00})
   );
-  z.position.set(Math.random()*10-5,0.8,-15);
+  z.position.set(Math.random()*12-6,0.8,-20);
   z.hp=type==="red"?2:1;
   z.speed=type==="red"?0.07:0.045;
   z.damage=type==="red"?3:1;
@@ -195,12 +235,25 @@ shieldBtn.onclick=()=>{
 };
 
 /* ===== LOOP ===== */
+let walkTime = 0;
+
 function animate(){
   requestAnimationFrame(animate);
 
+  // movimiento
   player.position.x+=moveX*0.12;
   player.position.z+=moveY*0.12;
 
+  // animación piernas
+  if(moveX!==0 || moveY!==0){
+    walkTime+=0.15;
+    legL.rotation.x=Math.sin(walkTime)*0.8;
+    legR.rotation.x=-Math.sin(walkTime)*0.8;
+  } else {
+    legL.rotation.x=legR.rotation.x=0;
+  }
+
+  // zombies persiguen
   zombies.forEach(z=>{
     z.lookAt(player.position);
     z.translateZ(z.speed);
@@ -214,7 +267,12 @@ function animate(){
     boss.translateZ(0.02);
   }
 
-  updateCamera();
+  // cámara
+  camera.position.x = player.position.x + Math.sin(camAngle)*camDistance;
+  camera.position.z = player.position.z + Math.cos(camAngle)*camDistance;
+  camera.position.y = camHeight;
+  camera.lookAt(player.position);
+
   renderer.render(scene,camera);
 }
 animate();
