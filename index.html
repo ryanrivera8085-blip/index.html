@@ -2,184 +2,229 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Luminu</title>
-<style>
-body { margin:0; background:black; overflow:hidden; font-family:Arial; }
-canvas { display:block; }
+<title>Luminu 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-.btn {
+<style>
+body { margin:0; overflow:hidden; background:black; font-family:Arial; }
+
+/* UI */
+#ui-left {
   position:absolute;
-  padding:15px 25px;
-  border-radius:12px;
-  border:2px solid cyan;
-  background:rgba(0,200,255,0.25);
+  left:20px;
+  bottom:20px;
+  z-index:10;
+}
+#ui-right {
+  position:absolute;
+  right:20px;
+  top:40%;
+  font-size:100px;
   color:white;
+  z-index:10;
+}
+#joystick {
+  width:120px;
+  height:120px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.15);
+  margin-bottom:10px;
+}
+.btn {
+  width:120px;
+  padding:10px;
+  margin-top:8px;
+  border-radius:12px;
+  border:none;
+  background:#00cfd1;
   font-size:16px;
 }
 
-.center { left:50%; transform:translateX(-50%); }
-
-.hidden { display:none; }
-
-h1 {
-  color:white;
-  text-align:center;
+#bossBar {
+  position:absolute;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%);
+  width:220px;
+  height:14px;
+  background:#400;
+  display:none;
+}
+#bossLife {
+  height:100%;
+  width:100%;
+  background:red;
 }
 </style>
 </head>
+
 <body>
 
-<!-- MENÚ -->
-<div id="menu">
-  <canvas id="menuCanvas"></canvas>
-  <button class="btn center" style="bottom:220px" onclick="openBattle()">BATALLA</button>
-  <button class="btn center" style="bottom:150px" onclick="openTraining()">ENTRENAMIENTO</button>
-  <button class="btn center" style="bottom:80px">HISTORIA</button>
+<!-- UI -->
+<div id="ui-left">
+  <div id="joystick"></div>
+  <button class="btn" id="pulseBtn">PULSO</button>
+  <button class="btn" id="shieldBtn">ESCUDO</button>
 </div>
 
-<!-- DIFICULTAD -->
-<div id="difficulty" class="hidden">
-  <h1>DIFICULTAD</h1>
-  <button class="btn center" style="top:150px" onclick="startNormal()">NORMAL</button>
-  <button class="btn center" style="top:220px">FÁCIL</button>
-  <button class="btn center" style="top:290px">DIFÍCIL</button>
-</div>
+<div id="ui-right">🧍</div>
 
-<!-- ENTRENAMIENTO -->
-<div id="training" class="hidden">
-  <h1>ENTRENAMIENTO</h1>
-</div>
+<div id="bossBar"><div id="bossLife"></div></div>
 
-<!-- JUEGO -->
-<canvas id="game" class="hidden"></canvas>
-<button id="pulsoBtn" class="btn hidden" style="right:20px;bottom:120px">PULSO</button>
-<button id="escudoBtn" class="btn hidden" style="right:120px;bottom:120px">ESCUDO</button>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152/build/three.min.js"></script>
 
 <script>
-/* ========= MENÚ ========= */
-const menuCanvas = document.getElementById("menuCanvas");
-menuCanvas.width = innerWidth;
-menuCanvas.height = innerHeight;
-const mctx = menuCanvas.getContext("2d");
+/* ===== ESCENA ===== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
 
-function drawStickman() {
-  mctx.clearRect(0,0,menuCanvas.width,menuCanvas.height);
-  let x = menuCanvas.width/2, y = menuCanvas.height/2;
-  mctx.strokeStyle="white"; mctx.lineWidth=4;
-  mctx.beginPath(); mctx.arc(x,y-40,15,0,Math.PI*2); mctx.stroke();
-  mctx.beginPath();
-  mctx.moveTo(x,y-25); mctx.lineTo(x,y+30);
-  mctx.moveTo(x-20,y); mctx.lineTo(x+20,y);
-  mctx.moveTo(x,y+30); mctx.lineTo(x-20,y+60);
-  mctx.moveTo(x,y+30); mctx.lineTo(x+20,y+60);
-  mctx.stroke();
-}
-drawStickman();
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
 
-/* ========= CAMBIOS DE PANTALLA ========= */
-function openBattle(){
-  document.getElementById("menu").style.display="none";
-  document.getElementById("difficulty").style.display="block";
-}
-function openTraining(){
-  document.getElementById("menu").style.display="none";
-  document.getElementById("training").style.display="block";
-}
+scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-/* ========= JUEGO ========= */
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+/* ===== SUELO ===== */
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(100,100),
+  new THREE.MeshBasicMaterial({color:0x111111})
+);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
 
-let luminu = {x:canvas.width/2,y:canvas.height/2,life:100,shield:100};
-let enemies=[], pulses=[];
-let pulsoReady=true, kills=0;
+/* ===== JUGADOR ===== */
+const player = new THREE.Group();
+const body = new THREE.Mesh(
+  new THREE.BoxGeometry(1,1.6,0.6),
+  new THREE.MeshBasicMaterial({color:0xffffff})
+);
+body.position.y = 0.8;
+player.add(body);
+scene.add(player);
 
-function startNormal(){
-  document.getElementById("difficulty").style.display="none";
-  canvas.classList.remove("hidden");
-  document.getElementById("pulsoBtn").classList.remove("hidden");
-  document.getElementById("escudoBtn").classList.remove("hidden");
-  setInterval(spawnEnemy,1500);
-  loop();
+/* ===== VARIABLES ===== */
+let moveX=0, moveY=0;
+let zombies=[];
+let kills=0;
+let boss=null;
+let pulseReady=true;
+let shieldLife=0;
+
+/* ===== CÁMARA 3RA PERSONA ===== */
+function updateCamera(){
+  const offset = new THREE.Vector3(0,4,7);
+  camera.position.copy(player.position).add(offset);
+  camera.lookAt(player.position);
 }
 
-function spawnEnemy(){
+/* ===== JOYSTICK ===== */
+const joystick = document.getElementById("joystick");
+joystick.addEventListener("touchmove", e=>{
+  const t=e.touches[0];
+  const r=joystick.getBoundingClientRect();
+  moveX=(t.clientX-(r.left+r.width/2))/50;
+  moveY=(t.clientY-(r.top+r.height/2))/50;
+  moveX=Math.max(-1,Math.min(1,moveX));
+  moveY=Math.max(-1,Math.min(1,moveY));
+});
+joystick.addEventListener("touchend",()=>{moveX=moveY=0;});
+
+/* ===== ZOMBIES ===== */
+function spawnZombie(){
   kills++;
   let type="normal";
   if(kills%15===0) type="boss";
   else if(kills%10===0) type="red";
 
-  let e={x:Math.random()*canvas.width,y:Math.random()*canvas.height,type,hp:1};
+  if(type==="boss"){
+    boss=new THREE.Mesh(
+      new THREE.BoxGeometry(3,4,3),
+      new THREE.MeshBasicMaterial({color:0x800080})
+    );
+    boss.position.set(Math.random()*10-5,2,-15);
+    boss.hp=10;
+    scene.add(boss);
+    bossBar.style.display="block";
+    bossLife.style.width="100%";
+    return;
+  }
 
-  if(type==="red"){e.hp=2;e.speed=1.8;}
-  else if(type==="boss"){e.hp=10;e.speed=0.4;}
-  else{e.speed=1.2;}
-
-  enemies.push(e);
+  const z=new THREE.Mesh(
+    new THREE.BoxGeometry(1,1.6,0.6),
+    new THREE.MeshBasicMaterial({color:type==="red"?0xff0000:0x00ff00})
+  );
+  z.position.set(Math.random()*10-5,0.8,-15);
+  z.hp=type==="red"?2:1;
+  z.speed=type==="red"?0.07:0.045;
+  z.damage=type==="red"?3:1;
+  scene.add(z);
+  zombies.push(z);
 }
+setInterval(spawnZombie,1500);
 
-document.getElementById("pulsoBtn").onclick=()=>{
-  if(!pulsoReady) return;
-  pulsoReady=false;
-  pulses.push({r:0});
-  setTimeout(()=>pulsoReady=true,5000);
+/* ===== PULSO ===== */
+pulseBtn.onclick=()=>{
+  if(!pulseReady) return;
+  pulseReady=false;
+
+  zombies=zombies.filter(z=>{
+    if(z.position.distanceTo(player.position)<5){
+      z.hp--;
+      if(z.hp<=0){scene.remove(z); return false;}
+    }
+    return true;
+  });
+
+  if(boss && boss.position.distanceTo(player.position)<6){
+    boss.hp--;
+    bossLife.style.width=(boss.hp/10*100)+"%";
+    if(boss.hp<=0){
+      scene.remove(boss);
+      boss=null;
+      bossBar.style.display="none";
+    }
+  }
+
+  setTimeout(()=>pulseReady=true,5000);
 };
 
-document.getElementById("escudoBtn").onclick=()=>{
-  luminu.shield=100;
+/* ===== ESCUDO ===== */
+shieldBtn.onclick=()=>{
+  shieldLife=5;
 };
 
-function update(){
-  enemies.forEach(e=>{
-    let dx=luminu.x-e.x, dy=luminu.y-e.y;
-    let d=Math.hypot(dx,dy);
-    e.x+=dx/d*e.speed;
-    e.y+=dy/d*e.speed;
-    if(d<20){
-      if(luminu.shield>0){
-        luminu.shield-=e.type==="red"?3:1;
-      }else luminu.life-=e.type==="boss"?2:0.5;
+/* ===== LOOP ===== */
+function animate(){
+  requestAnimationFrame(animate);
+
+  player.position.x+=moveX*0.12;
+  player.position.z+=moveY*0.12;
+
+  zombies.forEach(z=>{
+    z.lookAt(player.position);
+    z.translateZ(z.speed);
+    if(z.position.distanceTo(player.position)<1){
+      if(shieldLife>0) shieldLife-=z.damage;
     }
   });
 
-  pulses.forEach(p=>{
-    p.r+=6;
-    enemies.forEach(e=>{
-      if(Math.hypot(luminu.x-e.x,luminu.y-e.y)<p.r){
-        e.hp--;
-      }
-    });
-  });
+  if(boss){
+    boss.lookAt(player.position);
+    boss.translateZ(0.02);
+  }
 
-  enemies=enemies.filter(e=>e.hp>0);
+  updateCamera();
+  renderer.render(scene,camera);
 }
+animate();
 
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // Luminu
-  ctx.strokeStyle="white"; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.arc(luminu.x,luminu.y-20,10,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(luminu.x,luminu.y-10); ctx.lineTo(luminu.x,luminu.y+20); ctx.stroke();
-
-  // Enemies
-  enemies.forEach(e=>{
-    ctx.fillStyle=e.type==="boss"?"purple":e.type==="red"?"red":"green";
-    ctx.beginPath(); ctx.arc(e.x,e.y,e.type==="boss"?30:15,0,Math.PI*2); ctx.fill();
-  });
-
-  // UI
-  ctx.fillStyle="red"; ctx.fillRect(20,20,luminu.life*2,10);
-  ctx.fillStyle="cyan"; ctx.fillRect(20,40,luminu.shield*2,8);
-}
-
-function loop(){
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
+addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
 </script>
+
 </body>
 </html>
