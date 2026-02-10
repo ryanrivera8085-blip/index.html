@@ -2,192 +2,249 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Luminu Mobile</title>
-
+<title>Luminu 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body {
-  margin:0;
-  background:black;
-  overflow:hidden;
-  touch-action:none;
-}
-canvas { display:block; }
+body{margin:0;overflow:hidden;background:black;color:white;font-family:sans-serif;touch-action:none}
 
+/* UI */
 .btn{
-  position:absolute;
-  width:70px;
-  height:70px;
-  border-radius:50%;
-  background:rgba(0,200,255,0.3);
-  border:2px solid cyan;
-  color:white;
-  font-size:14px;
+  position:absolute;width:140px;height:44px;border-radius:10px;
+  background:rgba(0,200,255,.35);border:2px solid cyan;color:white;font-size:16px
+}
+.small{width:120px}
+.center{left:50%;transform:translateX(-50%)}
+.right{right:20px}
+.left{left:20px}
+
+#menu,#difficulty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+#gameUI{position:absolute;inset:0;display:none;pointer-events:none}
+#pulso{position:absolute;right:20px;bottom:100px;pointer-events:auto}
+
+#joyBase{
+  position:absolute;left:20px;bottom:80px;width:120px;height:120px;border-radius:50%;
+  background:rgba(255,255,255,.08);pointer-events:auto
+}
+#joyStick{
+  position:absolute;left:60px;bottom:120px;width:40px;height:40px;border-radius:50%;
+  background:rgba(255,255,255,.5);pointer-events:none
 }
 
-#pulso{ right:20px; bottom:100px; }
-#escudo{ right:100px; bottom:100px; }
+/* Boss HP */
+#bossBarWrap{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  width:60%;height:14px;border:2px solid #ff4d4d;display:none
+}
+#bossBar{height:100%;width:100%;background:#ff4d4d}
+
+/* Stickman menu */
+#stickman{
+  width:80px;height:140px;position:relative
+}
+#stickman .head{width:26px;height:26px;border-radius:50%;background:#fff;position:absolute;top:0;left:27px}
+#stickman .body{width:10px;height:50px;background:#fff;position:absolute;top:26px;left:35px}
+#stickman .arms{width:60px;height:6px;background:#fff;position:absolute;top:46px;left:10px}
+#stickman .legsL,#stickman .legsR{
+  width:8px;height:40px;background:#fff;position:absolute;top:76px
+}
+#stickman .legsL{left:30px}
+#stickman .legsR{left:42px}
 </style>
 </head>
-
 <body>
-<canvas id="game"></canvas>
 
-<button class="btn" id="pulso">Pulso</button>
-<button class="btn" id="escudo">Escudo</button>
+<!-- MENÚ -->
+<div id="menu">
+  <div id="stickman">
+    <div class="head"></div><div class="body"></div><div class="arms"></div>
+    <div class="legsL"></div><div class="legsR"></div>
+  </div>
+  <button class="btn left" id="btnBattle">BATALLA</button>
+  <button class="btn right">HISTORIA</button>
+  <button class="btn right">ENTRENAMIENTO</button>
+</div>
 
+<!-- DIFICULTAD -->
+<div id="difficulty" style="display:none">
+  <h2 style="color:#cfd8ff">DIFICULTAD</h2>
+  <button class="btn small">FÁCIL</button>
+  <button class="btn small" id="btnNormal">NORMAL</button>
+  <button class="btn small">DIFÍCIL</button>
+</div>
+
+<!-- GAME UI -->
+<div id="gameUI">
+  <div id="bossBarWrap"><div id="bossBar"></div></div>
+  <div id="joyBase"></div><div id="joyStick"></div>
+  <button class="btn" id="pulso">Pulso</button>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-canvas.width = innerWidth;
-canvas.height = innerHeight;
-
-const pulsoBtn = document.getElementById("pulso");
-const escudoBtn = document.getElementById("escudo");
-
-// 🔹 LUMINU (PERSONA)
-let luminu = {
-  x: canvas.width/2,
-  y: canvas.height/2,
-  life:100,
-  shield:false
+/* ===== ESTADOS ===== */
+const menu=document.getElementById('menu');
+const difficulty=document.getElementById('difficulty');
+const gameUI=document.getElementById('gameUI');
+document.getElementById('btnBattle').onclick=()=>{
+  menu.style.display='none';
+  difficulty.style.display='flex';
 };
+document.getElementById('btnNormal').onclick=startGame;
 
-// 👾 ZOMBIES
-let enemies=[];
-function spawnEnemy(){
-  enemies.push({
-    x:Math.random()*canvas.width,
-    y:Math.random()*canvas.height,
-    speed:0.4
-  });
+/* ===== JUEGO ===== */
+let scene,camera,renderer,luminu,shieldMesh;
+let zombies=[],spawnCount=0;
+let life=100,shieldLife=100,shieldActive=true;
+let pulses=[],pulsoReady=true,cooldown=5;
+let boss=null,bossMaxHP=0;
+
+function startGame(){
+  difficulty.style.display='none';
+  gameUI.style.display='block';
+  init3D();
+  loop();
 }
-setInterval(spawnEnemy,2000);
 
-// 🕹️ JOYSTICK
-let joy={active:false,sx:0,sy:0,dx:0,dy:0};
+/* ===== THREE INIT ===== */
+function init3D(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x05080f);
 
-canvas.addEventListener("touchstart",e=>{
-  let t=e.touches[0];
-  if(t.clientX<canvas.width/2){
-    joy.active=true;
-    joy.sx=t.clientX;
-    joy.sy=t.clientY;
+  camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth,innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xffffff,0x222233,1));
+  const dir=new THREE.DirectionalLight(0xffffff,.8); dir.position.set(5,10,5); scene.add(dir);
+
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0x0b132b}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+
+  luminu=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.35,.8,4,8),new THREE.MeshStandardMaterial({color:0xffffff}));
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.28,16,16),new THREE.MeshStandardMaterial({color:0xeaeaea}));
+  head.position.y=.9; luminu.add(body,head); luminu.position.y=.9; scene.add(luminu);
+
+  shieldMesh=new THREE.Mesh(new THREE.SphereGeometry(.9,16,16),
+    new THREE.MeshBasicMaterial({color:0x00ffff,transparent:true,opacity:.2}));
+  luminu.add(shieldMesh);
+
+  setInterval(spawnZombie,2000);
+}
+
+/* ===== JOYSTICK ===== */
+const joyBase=document.getElementById("joyBase");
+const joyStick=document.getElementById("joyStick");
+let joy={dx:0,dy:0};
+joyBase.addEventListener("touchmove",e=>{
+  const r=joyBase.getBoundingClientRect(),t=e.touches[0];
+  let x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2);
+  const m=Math.hypot(x,y); if(m>40){x*=40/m;y*=40/m}
+  joy.dx=x/40; joy.dy=y/40;
+  joyStick.style.left=(r.left+r.width/2+x-20)+"px";
+  joyStick.style.bottom=(innerHeight-(r.top+r.height/2+y+20))+"px";
+});
+joyBase.addEventListener("touchend",()=>joy.dx=joy.dy=0);
+
+/* ===== ZOMBIES ===== */
+function spawnZombie(){
+  spawnCount++;
+  let type="normal";
+  if(spawnCount%15===0) type="boss";
+  else if(spawnCount%10===0) type="red";
+
+  let color=0x2ecc71,scale=1,speed=0.045,damage=0.4,hits=1;
+
+  if(type==="red"){color=0xff3333;speed=0.085;damage=1.2;hits=2}
+  if(type==="boss"){color=0x8e44ad;scale=2.4;speed=0.06;damage=2.5;hits=5}
+
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(.7,.7*scale,.7),new THREE.MeshStandardMaterial({color}));
+  mesh.scale.set(scale,scale,scale);
+  const a=Math.random()*Math.PI*2,d=18+Math.random()*15;
+  mesh.position.set(Math.cos(a)*d,.55*scale,Math.sin(a)*d);
+  scene.add(mesh);
+
+  const z={mesh,speed,damage,hits,type};
+  zombies.push(z);
+
+  if(type==="boss"){
+    boss=z; bossMaxHP=hits;
+    document.getElementById('bossBarWrap').style.display='block';
+    updateBossBar();
   }
-});
-canvas.addEventListener("touchmove",e=>{
-  if(!joy.active)return;
-  let t=e.touches[0];
-  joy.dx=t.clientX-joy.sx;
-  joy.dy=t.clientY-joy.sy;
-});
-canvas.addEventListener("touchend",()=>{
-  joy.active=false;
-  joy.dx=joy.dy=0;
-});
+}
 
-// 💥 PULSO
-let pulses=[];
-let pulsoReady=true;
-let cooldown=5;
-
-function pulso(){
+/* ===== PULSO ===== */
+const pulsoBtn=document.getElementById("pulso");
+pulsoBtn.onclick=()=>{
   if(!pulsoReady)return;
-  pulsoReady=false;
-  cooldown=5;
-  pulses.push({r:0,max:200});
-
-  let timer=setInterval(()=>{
-    cooldown--;
-    pulsoBtn.textContent=cooldown>0?cooldown:"Pulso";
-    if(cooldown<=0){
-      pulsoReady=true;
-      clearInterval(timer);
-    }
+  pulsoReady=false; cooldown=5; pulses.push({r:0,max:6});
+  const t=setInterval(()=>{
+    cooldown--; pulsoBtn.textContent=cooldown>0?cooldown:"Pulso";
+    if(cooldown<=0){pulsoReady=true; clearInterval(t)}
   },1000);
-}
-pulsoBtn.onclick=pulso;
-
-// 🛡️ ESCUDO
-escudoBtn.onclick=()=>{
-  luminu.shield=true;
-  setTimeout(()=>luminu.shield=false,3000);
 };
 
-// 🔁 UPDATE
+/* ===== UPDATE ===== */
 function update(){
-  luminu.x+=joy.dx*0.03;
-  luminu.y+=joy.dy*0.03;
+  luminu.position.x+=joy.dx*0.15;
+  luminu.position.z+=joy.dy*0.15;
 
-  enemies.forEach(e=>{
-    let dx=luminu.x-e.x;
-    let dy=luminu.y-e.y;
-    let d=Math.hypot(dx,dy);
-    e.x+=(dx/d)*e.speed;
-    e.y+=(dy/d)*e.speed;
-    if(d<25 && !luminu.shield) luminu.life-=0.2;
+  camera.position.lerp(new THREE.Vector3(luminu.position.x,4,luminu.position.z+6),0.1);
+  camera.lookAt(luminu.position);
+
+  zombies.forEach((z,zi)=>{
+    const dx=luminu.position.x-z.mesh.position.x;
+    const dz=luminu.position.z-z.mesh.position.z;
+    const d=Math.hypot(dx,dz);
+    z.mesh.position.x+=(dx/d)*z.speed;
+    z.mesh.position.z+=(dz/d)*z.speed;
+
+    if(d<1.2*z.mesh.scale.x){
+      if(shieldActive){
+        shieldLife-=z.damage*(z.type==="boss"?3:1);
+        if(shieldLife<=0){shieldActive=false; shieldMesh.visible=false}
+      }else life-=z.damage;
+    }
   });
 
-  pulses.forEach((p,i)=>{
-    p.r+=6;
-    enemies=enemies.filter(e=>
-      Math.hypot(luminu.x-e.x,luminu.y-e.y)>p.r
-    );
-    if(p.r>p.max)pulses.splice(i,1);
+  pulses.forEach((p,pi)=>{
+    p.r+=0.25;
+    zombies.forEach((z,zi)=>{
+      const d=luminu.position.distanceTo(z.mesh.position);
+      if(d<p.r){
+        z.hits--;
+        if(z.hits<=0){
+          scene.remove(z.mesh); zombies.splice(zi,1);
+          if(z.type==="boss"){
+            boss=null; document.getElementById('bossBarWrap').style.display='none';
+          }
+        }
+        if(z.type==="boss") updateBossBar();
+      }
+    });
+    if(p.r>p.max)pulses.splice(pi,1);
   });
 
-  if(luminu.life<=0){
-    alert("GAME OVER");
-    location.reload();
-  }
+  if(life<=0){alert("GAME OVER"); location.reload()}
+}
+function updateBossBar(){
+  const bar=document.getElementById('bossBar');
+  bar.style.width=((boss.hits/bossMaxHP)*100)+"%";
 }
 
-// 🎨 DRAW
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // Luminu persona
-  ctx.fillStyle="white";
-  ctx.beginPath(); ctx.arc(luminu.x,luminu.y-12,6,0,Math.PI*2); ctx.fill();
-  ctx.fillRect(luminu.x-4,luminu.y-6,8,14);
-  ctx.fillRect(luminu.x-8,luminu.y,16,4);
-
-  // Escudo
-  if(luminu.shield){
-    ctx.strokeStyle="cyan";
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    ctx.arc(luminu.x,luminu.y,22,0,Math.PI*2);
-    ctx.stroke();
-  }
-
-  // Zombies
-  enemies.forEach(e=>{
-    ctx.fillStyle="green";
-    ctx.fillRect(e.x-6,e.y-6,12,12);
-    ctx.fillStyle="darkgreen";
-    ctx.fillRect(e.x-4,e.y-14,8,8);
-  });
-
-  // Pulso
-  pulses.forEach(p=>{
-    ctx.strokeStyle="blue";
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    ctx.arc(luminu.x,luminu.y,p.r,0,Math.PI*2);
-    ctx.stroke();
-  });
-
-  // Vida
-  ctx.fillStyle="red";
-  ctx.fillRect(20,20,luminu.life*2,10);
-}
-
+/* ===== LOOP ===== */
 function loop(){
   update();
-  draw();
+  renderer.render(scene,camera);
   requestAnimationFrame(loop);
 }
-loop();
+window.addEventListener("resize",()=>{
+  if(!renderer)return;
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
 </script>
 </body>
 </html>
